@@ -149,3 +149,14 @@
 .animation-delay-2000 {
   animation-delay: 2s;
 }
+
+
+.my-scroll-container {
+  overflow-y: scroll;
+  -ms-overflow-style: none; 
+  scrollbar-width: none;
+}
+
+.my-scroll-container::-webkit-scrollbar {
+  display: none;
+}
