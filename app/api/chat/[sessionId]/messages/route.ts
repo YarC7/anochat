@@ -3,10 +3,10 @@ import { getConversationHistory } from "@/lib/chat";
 
 export async function GET(
   request: Request,
-  { params }: { params: { sessionId: string } }
+  { params }: { params: Promise<{ sessionId: string }> }
 ) {
   try {
-    const sessionId = params.sessionId;
+    const { sessionId } = await params;
 
     const messages = await getConversationHistory(sessionId);
 

@@ -14,21 +14,84 @@ export function MatchingLobby({ userId }: { userId: string }) {
 
   const { isConnected, lastMessage } = useWebSocket();
 
-  // Listen for match notifications via WebSocket
+  // Restore active session from localStorage on mount
   useEffect(() => {
-    if (lastMessage && lastMessage.type === "match_found") {
-      const payload = lastMessage.payload;
-      if (payload?.userId === userId) {
-        // Use queueMicrotask to defer state updates and avoid cascading renders
-        queueMicrotask(() => {
-          setSessionId(payload.sessionId || null);
-          setPartnerId(payload.partnerId || null);
-          setMatchFound(true);
-          setIsSearching(false);
-        });
+    const storedSession = localStorage.getItem(`activeSession_${userId}`);
+    if (storedSession) {
+      try {
+        const { sessionId: savedSessionId, partnerId: savedPartnerId } =
+          JSON.parse(storedSession);
+
+        // Verify session is still active
+        fetch(`/api/chat/${savedSessionId}/status`)
+          .then((res) => res.json())
+          .then((data) => {
+            if (data.status === "active") {
+              setSessionId(savedSessionId);
+              setPartnerId(savedPartnerId);
+              setMatchFound(true);
+            } else {
+              // Session ended, clear localStorage
+              localStorage.removeItem(`activeSession_${userId}`);
+            }
+          })
+          .catch(() => {
+            localStorage.removeItem(`activeSession_${userId}`);
+          });
+      } catch (error) {
+        console.error("Error restoring session:", error);
       }
     }
-  }, [lastMessage, userId]);
+  }, [userId]);
+
+  // Listen for match notifications via WebSocket
+  useEffect(() => {
+    if (!lastMessage) return;
+
+    // Handle session ended by partner
+    if (
+      lastMessage.type === "session_ended" &&
+      lastMessage.sessionId === sessionId
+    ) {
+      // Partner left the room
+      localStorage.removeItem(`activeSession_${userId}`);
+      alert("Your chat partner has left the conversation.");
+      window.location.reload();
+      return;
+    }
+
+    if (lastMessage.type !== "match_found") return;
+
+    // Support both shapes: { type: 'match_found', payload: {...} } and flat { type: 'match_found', userId: '...', sessionId: '...', partnerId: '...' }
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const payload = (lastMessage as any).payload ?? lastMessage;
+
+    console.debug("MatchingLobby received match_found payload:", payload);
+
+    if (payload?.userId === userId) {
+      // Use queueMicrotask to defer state updates and avoid cascading renders
+      queueMicrotask(() => {
+        const newSessionId = payload.sessionId || null;
+        const newPartnerId = payload.partnerId || null;
+
+        setSessionId(newSessionId);
+        setPartnerId(newPartnerId);
+        setMatchFound(true);
+        setIsSearching(false);
+
+        // Save to localStorage for persistence
+        if (newSessionId && newPartnerId) {
+          localStorage.setItem(
+            `activeSession_${userId}`,
+            JSON.stringify({
+              sessionId: newSessionId,
+              partnerId: newPartnerId,
+            })
+          );
+        }
+      });
+    }
+  }, [lastMessage, userId, sessionId]);
 
   // Poll queue stats while searching
   useEffect(() => {
@@ -72,6 +135,15 @@ export function MatchingLobby({ userId }: { userId: string }) {
           setPartnerId(data.partnerId);
           setMatchFound(true);
           setIsSearching(false);
+
+          // Save to localStorage for persistence
+          localStorage.setItem(
+            `activeSession_${userId}`,
+            JSON.stringify({
+              sessionId: data.sessionId,
+              partnerId: data.partnerId,
+            })
+          );
         } else {
           // User added to queue, WebSocket will notify when matched
           // Continue showing searching state

@@ -1,13 +1,12 @@
 import { NextResponse } from "next/server";
 import { sendMessage } from "@/lib/chat";
-import { publishChannel } from "@/lib/redis";
 
 export async function POST(
   request: Request,
-  { params }: { params: { sessionId: string } }
+  { params }: { params: Promise<{ sessionId: string }> }
 ) {
   try {
-    const sessionId = params.sessionId;
+    const { sessionId } = await params;
     const body = await request.json();
     const { senderId, content, type = "text" } = body;
 
@@ -18,16 +17,8 @@ export async function POST(
       );
     }
 
+    // Just save to database - WebSocket already handles broadcasting
     const message = await sendMessage(sessionId, senderId, content, type);
-
-    // Publish to Redis for WebSocket broadcast
-    await publishChannel("broadcast", {
-      type: "chat_message",
-      sessionId,
-      senderId: message.senderId,
-      content: message.content,
-      timestamp: message.createdAt.getTime(),
-    });
 
     return NextResponse.json({ message });
   } catch (error) {

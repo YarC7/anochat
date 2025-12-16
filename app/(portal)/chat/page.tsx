@@ -36,10 +36,8 @@ export default function ChatPage() {
   }
 
   return (
-    <div className="flex h-screen bg-[#1a1a2e]">
-      <div className="flex-1 flex items-center justify-center">
-        <MatchingLobby userId={userId} />
-      </div>
+    <div className="h-screen bg-[#1a1a2e]">
+      <MatchingLobby userId={userId} />
     </div>
   );
 }

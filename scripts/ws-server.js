@@ -113,18 +113,18 @@ async function start() {
     ws.on("message", async (msg) => {
       try {
         const data = JSON.parse(msg.toString());
+
         if (redisConnected) {
+          // Publish to Redis - it will broadcast to all clients
           await redisPublisher.publish("broadcast", JSON.stringify(data));
         } else {
-          // Fallback: broadcast directly to all clients without Redis
+          // Fallback: broadcast directly to all clients without Redis (excluding sender)
           wss.clients.forEach((client) => {
             if (client !== ws && client.readyState === WebSocket.OPEN) {
               client.send(JSON.stringify(data));
             }
           });
         }
-        // Publish to Redis broadcast channel
-        await redisPublisher.publish("broadcast", JSON.stringify(data));
       } catch (err) {
         console.error("Error handling incoming WebSocket message:", err);
       }
