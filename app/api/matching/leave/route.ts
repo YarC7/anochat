@@ -11,6 +11,13 @@ export async function POST(request: Request) {
     }
 
     await leaveMatchingQueue(userId);
+    try {
+      // remove preference from redis hash if present
+      const redis = (await import("@/lib/redis")).redis;
+      await redis.hdel("matching:prefs", userId);
+    } catch (err) {
+      // ignore
+    }
 
     return NextResponse.json({ success: true });
   } catch (error) {

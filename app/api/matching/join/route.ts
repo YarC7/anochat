@@ -4,13 +4,16 @@ import { joinMatchingQueue } from "@/lib/matching";
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    const { userId, preferences } = body;
+    const { userId, preference } = body;
 
     if (!userId) {
       return NextResponse.json({ error: "Missing userId" }, { status: 400 });
     }
 
-    const result = await joinMatchingQueue(userId);
+    const pref =
+      preference === "female" || preference === "male" ? preference : "any";
+
+    const result = await joinMatchingQueue(userId, pref);
 
     return NextResponse.json(result);
   } catch (error) {

@@ -11,7 +11,49 @@ export function MatchingLobby({ userId }: { userId: string }) {
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [partnerId, setPartnerId] = useState<string | null>(null);
   const [queueCount, setQueueCount] = useState(0);
+  const [preference, setPreference] = useState<"any" | "female" | "male">(
+    "any"
+  );
+  const PREF_KEY = "matching_preference";
 
+  // Load saved preference from memory API (server-side) or localStorage
+  useEffect(() => {
+    async function loadPreference() {
+      try {
+        // First try server-side persistent memory
+        const res = await fetch(`/api/user/${userId}/memory?namespace=prefs`);
+        if (res.ok) {
+          const json = await res.json();
+          type MemoryRow = { key: string; value: string };
+          const found = (json.data || []).find(
+            (row: MemoryRow) => row.key === PREF_KEY
+          );
+          if (found && found.value) {
+            try {
+              const parsed = JSON.parse(found.value);
+              if (
+                parsed === "any" ||
+                parsed === "female" ||
+                parsed === "male"
+              ) {
+                setPreference(parsed);
+                return;
+              }
+            } catch {}
+          }
+        }
+      } catch {
+        // ignore
+      }
+
+      // fallback to localStorage
+      const local = localStorage.getItem(PREF_KEY);
+      if (local === "any" || local === "female" || local === "male") {
+        setPreference(local);
+      }
+    }
+    loadPreference();
+  }, [userId]);
   const { isConnected, lastMessage } = useWebSocket();
 
   // Restore active session from localStorage on mount
@@ -124,7 +166,7 @@ export function MatchingLobby({ userId }: { userId: string }) {
       const response = await fetch("/api/matching/join", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ userId }),
+        body: JSON.stringify({ userId, preference }),
       });
 
       if (response.ok) {
@@ -166,6 +208,34 @@ export function MatchingLobby({ userId }: { userId: string }) {
       console.error("Error leaving queue:", error);
     }
     setIsSearching(false);
+  };
+
+  const handlePreferenceChange = async (newPref: "any" | "female" | "male") => {
+    setPreference(newPref);
+    // Persist preference to server-side memory (if available)
+    try {
+      await fetch(`/api/user/${userId}/memory`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          key: PREF_KEY,
+          value: newPref,
+          namespace: "prefs",
+        }),
+      });
+    } catch {
+      // ignore errors
+    }
+
+    // Persist locally for immediate UX
+    localStorage.setItem(PREF_KEY, newPref);
+
+    // If currently searching, restart queue with new preference
+    if (isSearching) {
+      await cancelMatching();
+      // Small delay to allow server to remove from queue
+      setTimeout(startMatching, 300);
+    }
   };
 
   if (matchFound && sessionId && partnerId) {
@@ -372,6 +442,41 @@ export function MatchingLobby({ userId }: { userId: string }) {
               <p className="text-sm text-gray-400">
                 You&apos;ll be matched with a random user
               </p>
+
+              {/* Preference selector */}
+              <div className="mt-4 flex items-center justify-center gap-3">
+                <label
+                  className={`px-3 py-2 rounded-full cursor-pointer ${
+                    preference === "any"
+                      ? "bg-purple-600 text-white"
+                      : "bg-white/5 text-gray-300"
+                  }`}
+                  onClick={() => handlePreferenceChange("any")}
+                >
+                  Any
+                </label>
+                <label
+                  className={`px-3 py-2 rounded-full cursor-pointer ${
+                    preference === "female"
+                      ? "bg-purple-600 text-white"
+                      : "bg-white/5 text-gray-300"
+                  }`}
+                  onClick={() => handlePreferenceChange("female")}
+                >
+                  Female
+                </label>
+                <label
+                  className={`px-3 py-2 rounded-full cursor-pointer ${
+                    preference === "male"
+                      ? "bg-purple-600 text-white"
+                      : "bg-white/5 text-gray-300"
+                  }`}
+                  onClick={() => handlePreferenceChange("male")}
+                >
+                  Male
+                </label>
+              </div>
+
               <p className="text-xs text-gray-500 mt-1">
                 Chat anonymously and make new friends
               </p>
