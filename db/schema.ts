@@ -76,6 +76,7 @@ export const message = pgTable("message", {
     .notNull()
     .references(() => user.id),
   content: text("content").notNull(),
-  type: text("type").notNull().default("text"), // text, icebreaker, system
+  type: text("type").notNull().default("text"), // text, icebreaker, system, voice
+  audioUrl: text("audioUrl"), // Cloudinary URL for voice messages
   createdAt: timestamp("createdAt").notNull().defaultNow(),
 });

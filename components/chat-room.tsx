@@ -14,6 +14,10 @@ import {
   Sparkles,
   MoreHorizontal,
   Flag,
+  Menu,
+  X,
+  Mic,
+  Square,
 } from "lucide-react";
 
 interface ChatMessage {
@@ -21,8 +25,9 @@ interface ChatMessage {
   sessionId: string;
   senderId: string;
   content: string;
-  type: "text" | "icebreaker" | "system";
+  type: "text" | "icebreaker" | "system" | "voice";
   createdAt: Date;
+  audioUrl?: string;
 }
 
 interface ChatRoomProps {
@@ -40,8 +45,17 @@ export function ChatRoom({
   const [inputValue, setInputValue] = useState("");
   const [icebreakers, setIcebreakers] = useState<string[]>([]);
   const [loadingIcebreakers, setLoadingIcebreakers] = useState(false);
+  const [sidebarVisible, setSidebarVisible] = useState(true);
+  const [isRecording, setIsRecording] = useState(false);
+  const [recordingTime, setRecordingTime] = useState(0);
+  const [showReportForm, setShowReportForm] = useState(false);
+  const [reportReason, setReportReason] = useState("");
+  const [isSubmittingReport, setIsSubmittingReport] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const processedMessageIds = useRef<Set<string>>(new Set());
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const audioChunksRef = useRef<Blob[]>([]);
+  const recordingIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const router = useRouter();
 
   const { isConnected, lastMessage, sendMessage } = useWebSocket();
@@ -184,10 +198,14 @@ export function ChatRoom({
     window.location.reload();
   };
 
-  const handleReport = async () => {
-    const reason = prompt("Why are you reporting this user?");
-    if (!reason) return;
+  const handleReport = () => {
+    setShowReportForm(true);
+  };
 
+  const submitReport = async () => {
+    if (!reportReason.trim()) return;
+
+    setIsSubmittingReport(true);
     try {
       await fetch(`/api/chat/${sessionId}/report`, {
         method: "POST",
@@ -195,74 +213,210 @@ export function ChatRoom({
         body: JSON.stringify({
           reporterId: currentUserId,
           reportedUserId: partnerId,
-          reason,
+          reason: reportReason.trim(),
           sessionId,
         }),
       });
+      setShowReportForm(false);
+      setReportReason("");
       alert("Report submitted. Thank you for keeping our community safe.");
     } catch (error) {
       console.error("Error reporting user:", error);
       alert("Failed to submit report. Please try again.");
+    } finally {
+      setIsSubmittingReport(false);
     }
+  };
+
+  const cancelReport = () => {
+    setShowReportForm(false);
+    setReportReason("");
+  };
+
+  const startRecording = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const mediaRecorder = new MediaRecorder(stream);
+      mediaRecorderRef.current = mediaRecorder;
+      audioChunksRef.current = [];
+
+      mediaRecorder.ondataavailable = (event) => {
+        if (event.data.size > 0) {
+          audioChunksRef.current.push(event.data);
+        }
+      };
+
+      mediaRecorder.onstop = async () => {
+        const audioBlob = new Blob(audioChunksRef.current, {
+          type: "audio/webm",
+        });
+
+        // Upload to Cloudinary
+        const formData = new FormData();
+        formData.append("audio", audioBlob, "voice-message.webm");
+
+        try {
+          const uploadResponse = await fetch("/api/upload-audio", {
+            method: "POST",
+            body: formData,
+          });
+
+          if (!uploadResponse.ok) {
+            throw new Error("Failed to upload audio");
+          }
+
+          const { url: cloudinaryUrl } = await uploadResponse.json();
+
+          // Send voice message with Cloudinary URL
+          const timestamp = Date.now();
+          const newMessage: ChatMessage = {
+            id: timestamp.toString(),
+            sessionId,
+            senderId: currentUserId,
+            content: "🎤 Voice message",
+            type: "voice",
+            audioUrl: cloudinaryUrl,
+            createdAt: new Date(timestamp),
+          };
+          setMessages((prev) => [...prev, newMessage]);
+
+          // Send via WebSocket
+          const messageData = {
+            type: "chat_message",
+            sessionId,
+            senderId: currentUserId,
+            content: "🎤 Voice message",
+            messageType: "voice",
+            audioUrl: cloudinaryUrl,
+            timestamp,
+          };
+          sendMessage(messageData);
+
+          // Save to backend
+          await fetch(`/api/chat/${sessionId}/send`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              senderId: currentUserId,
+              content: "🎤 Voice message",
+              type: "voice",
+              audioUrl: cloudinaryUrl,
+            }),
+          });
+        } catch (error) {
+          console.error("Error uploading voice message:", error);
+          alert("Failed to send voice message. Please try again.");
+        }
+
+        // Clean up
+        stream.getTracks().forEach((track) => track.stop());
+        setRecordingTime(0);
+        if (recordingIntervalRef.current) {
+          clearInterval(recordingIntervalRef.current);
+        }
+      };
+
+      mediaRecorder.start();
+      setIsRecording(true);
+
+      // Start timer
+      recordingIntervalRef.current = setInterval(() => {
+        setRecordingTime((prev) => prev + 1);
+      }, 1000);
+    } catch (error) {
+      console.error("Error accessing microphone:", error);
+      alert("Could not access microphone. Please check permissions.");
+    }
+  };
+
+  const stopRecording = () => {
+    if (mediaRecorderRef.current && isRecording) {
+      mediaRecorderRef.current.stop();
+      setIsRecording(false);
+    }
+  };
+
+  const formatTime = (seconds: number) => {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins}:${secs.toString().padStart(2, "0")}`;
   };
 
   return (
     <div className="flex h-screen bg-[#0f0f1e]">
       {/* Sidebar */}
-      <div className="w-64 bg-[#16162a] border-r border-white/10 flex flex-col">
-        <div className="p-6">
-          <h1 className="text-xl font-bold text-white flex items-center gap-2">
-            <MessageCircle className="w-6 h-6 text-purple-500" />
-            StrangerChat
-          </h1>
+      <div
+        className={`bg-[#16162a] border-r border-white/10 flex flex-col transition-all duration-300 ${
+          sidebarVisible ? "w-64" : "w-16"
+        }`}
+      >
+        <div
+          className={`p-6 flex items-center ${
+            sidebarVisible ? "justify-between" : "justify-center"
+          }`}
+        >
+          {sidebarVisible && (
+            <h1 className="text-xl font-bold text-white flex items-center gap-2">
+              <MessageCircle className="w-6 h-6 text-purple-500" />
+              AnoChat
+            </h1>
+          )}
+          <button
+            onClick={() => setSidebarVisible(!sidebarVisible)}
+            className="p-2 text-gray-400 hover:text-white hover:bg-white/5 rounded-lg transition"
+            title={sidebarVisible ? "Hide sidebar" : "Show sidebar"}
+          >
+            <Menu className="w-5 h-5" />
+          </button>
         </div>
 
-        <nav className="flex-1 px-3 space-y-1">
+        <nav className={`flex-1 ${sidebarVisible ? "px-3" : "px-2"} space-y-1 mt-8`}>
           <button
             onClick={() => router.push("/chat")}
-            className="w-full flex items-center gap-3 px-4 py-3 rounded-lg bg-purple-600 text-white font-medium"
+            className={`w-full flex items-center gap-3 rounded-lg bg-purple-600 text-white font-medium ${
+              sidebarVisible ? "px-4 py-3" : "p-3 justify-center"
+            }`}
+            title="Active Chat"
           >
-            <MessageCircle className="w-5 h-5" />
-            Active Chat
+            <MessageCircle className="w-5 h-5 flex-shrink-0" />
+            {sidebarVisible && <span>Active Chat</span>}
           </button>
-          {/* <button
-            onClick={() => router.push("/dashboard")}
-            className="w-full flex items-center gap-3 px-4 py-3 rounded-lg text-gray-400 hover:bg-white/5 transition"
-          >
-            <Users className="w-5 h-5" />
-            Matches
-            <span className="ml-auto bg-purple-600 text-white text-xs px-2 py-1 rounded-full">
-              3
-            </span>
-          </button> */}
           <button
             onClick={() => router.push("/premium")}
-            className="w-full flex items-center gap-3 px-4 py-3 rounded-lg text-gray-400 hover:bg-white/5 transition"
+            className={`w-full flex items-center gap-3 rounded-lg text-gray-400 hover:bg-white/5 transition ${
+              sidebarVisible ? "px-4 py-3" : "p-3 justify-center"
+            }`}
+            title="Premium"
           >
-            <Crown className="w-5 h-5" />
-            Premium
+            <Crown className="w-5 h-5 flex-shrink-0" />
+            {sidebarVisible && <span>Premium</span>}
           </button>
           <button
             onClick={() => router.push("/settings")}
-            className="w-full flex items-center gap-3 px-4 py-3 rounded-lg text-gray-400 hover:bg-white/5 transition"
+            className={`w-full flex items-center gap-3 rounded-lg text-gray-400 hover:bg-white/5 transition ${
+              sidebarVisible ? "px-4 py-3" : "p-3 justify-center"
+            }`}
+            title="Settings"
           >
-            <Settings className="w-5 h-5" />
-            Settings
+            <Settings className="w-5 h-5 flex-shrink-0" />
+            {sidebarVisible && <span>Settings</span>}
           </button>
         </nav>
 
         {/* User profile at bottom */}
-        <div className="p-4 border-t border-white/10">
-          <div className="flex items-center gap-3">
-            <div className="w-12 h-12 rounded-full bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center text-white font-bold text-lg">
-              {currentUserId.slice(0, 2).toUpperCase()}
-            </div>
-            <div className="flex-1 min-w-0">
-              <p className="text-base font-medium text-white truncate">You</p>
-              <p className="text-xs text-gray-500">Online</p>
+        {sidebarVisible && (
+          <div className="p-4 border-t border-white/10">
+            <div className="flex items-center gap-3">
+              <div className="w-12 h-12 rounded-full bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center text-white font-bold text-lg">
+                {currentUserId.slice(0, 2).toUpperCase()}
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-base font-medium text-white truncate">You</p>
+                <p className="text-xs text-gray-500">Online</p>
+              </div>
             </div>
           </div>
-        </div>
+        )}
       </div>
 
       {/* Main Chat Area */}
@@ -333,15 +487,21 @@ export function ChatRoom({
                 {/* Message bubble */}
                 <div className="flex flex-col max-w-[65%]">
                   <div
-                    className={`px-5 py-3.5 rounded-2xl ${
+                    className={`px-5 py-2 rounded-2xl ${
                       isMe
                         ? "bg-purple-600 text-white rounded-tr-sm"
                         : "bg-[#2a2a3e] text-gray-100 rounded-tl-sm"
                     }`}
                   >
-                    <p className="text-base leading-relaxed">
-                      {message.content}
-                    </p>
+                    {message.type === "voice" && message.audioUrl ? (
+                      <audio controls className="h-8">
+                        <source src={message.audioUrl} type="audio/webm" />
+                      </audio>
+                    ) : (
+                      <p className="text-base leading-relaxed">
+                        {message.content}
+                      </p>
+                    )}
                   </div>
                 </div>
               </div>
@@ -349,6 +509,52 @@ export function ChatRoom({
           })}
           <div ref={messagesEndRef} />
         </div>
+
+        {/* Report Form Modal */}
+        {showReportForm && (
+          <div className="absolute inset-0 bg-black/50 backdrop-blur-sm z-20 flex items-center justify-center p-6">
+            <div className="bg-[#16162a] rounded-2xl border border-white/10 p-6 max-w-md w-full shadow-2xl">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-xl font-bold text-white flex items-center gap-2">
+                  <Flag className="w-5 h-5 text-red-400" />
+                  Report User
+                </h3>
+                <button
+                  onClick={cancelReport}
+                  className="p-2 text-gray-400 hover:text-white hover:bg-white/5 rounded-lg transition"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+              <p className="text-gray-400 text-sm mb-4">
+                Please tell us why you&rsquo;re reporting Stranger #
+                {partnerId.slice(-4)}. Your report will be reviewed by our team.
+              </p>
+              <textarea
+                value={reportReason}
+                onChange={(e) => setReportReason(e.target.value)}
+                placeholder="Describe the issue..."
+                rows={4}
+                className="w-full bg-[#0f0f1e] border border-white/10 rounded-lg px-4 py-3 text-white placeholder:text-gray-500 focus:border-purple-500 focus:outline-none resize-none"
+              />
+              <div className="flex gap-3 mt-4">
+                <Button
+                  onClick={cancelReport}
+                  className="flex-1 bg-white/5 hover:bg-white/10 text-white"
+                >
+                  Cancel
+                </Button>
+                <Button
+                  onClick={submitReport}
+                  disabled={!reportReason.trim() || isSubmittingReport}
+                  className="flex-1 bg-red-600 hover:bg-red-700 text-white disabled:opacity-50"
+                >
+                  {isSubmittingReport ? "Submitting..." : "Submit Report"}
+                </Button>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* AI Conversation Starters - Overlay */}
         {icebreakers.length > 0 && (
@@ -367,12 +573,12 @@ export function ChatRoom({
                 ✕
               </button>
             </div>
-            <div className="flex gap-2 overflow-x-auto pb-2 my-scroll-container">
+            <div className="grid grid-cols-3 gap-2">
               {icebreakers.map((ice, idx) => (
                 <button
                   key={idx}
                   onClick={() => handleUseIcebreaker(ice)}
-                  className="px-4 py-2.5 bg-[#2a2a3e] hover:bg-purple-600 hover:text-white text-gray-300 text-sm rounded-lg transition whitespace-nowrap flex-shrink-0"
+                  className="px-4 py-2.5 bg-[#2a2a3e] hover:bg-purple-600 hover:text-white text-gray-300 text-sm rounded-lg transition text-left truncate"
                 >
                   {ice}
                 </button>
@@ -383,11 +589,19 @@ export function ChatRoom({
 
         {/* Message Input */}
         <div className="bg-[#16162a] border-t border-white/10 px-6 py-4">
+          {isRecording && (
+            <div className="mb-3 flex items-center justify-center gap-3 text-red-400">
+              <div className="w-3 h-3 rounded-full bg-red-500 animate-pulse" />
+              <span className="text-sm font-medium">
+                Recording... {formatTime(recordingTime)}
+              </span>
+            </div>
+          )}
           <div className="flex items-center gap-3">
             <button
               onClick={handleGenerateIcebreakers}
-              disabled={loadingIcebreakers}
-              className="p-3 text-gray-400 hover:text-purple-400 hover:bg-white/5 rounded-lg transition disabled:opacity-50"
+              disabled={loadingIcebreakers || isRecording}
+              className="p-2 text-gray-400 hover:text-purple-400 hover:bg-white/5 rounded-lg transition disabled:opacity-50"
               title="Get AI suggestions"
             >
               <Sparkles className="w-5 h-5" />
@@ -399,15 +613,30 @@ export function ChatRoom({
                 e.key === "Enter" && !e.shiftKey && handleSendMessage()
               }
               placeholder="Type a message..."
-              className="flex-1 bg-[#0f0f1e] border-white/10 text-white placeholder:text-gray-500 focus:border-purple-500"
+              disabled={isRecording}
+              className="flex-1 bg-[#0f0f1e] border-white/10 text-white placeholder:text-gray-500 focus:border-purple-500 disabled:opacity-50"
             />
-            <button className="p-3 text-gray-400 hover:text-white hover:bg-white/5 rounded-lg transition">
-              <MoreHorizontal className="w-5 h-5" />
-            </button>
+            {isRecording ? (
+              <button
+                onClick={stopRecording}
+                className="p-3 text-red-400 hover:text-red-300 hover:bg-white/5 rounded-lg transition"
+                title="Stop recording"
+              >
+                <Square className="w-5 h-5" />
+              </button>
+            ) : (
+              <button
+                onClick={startRecording}
+                className="p-3 text-gray-400 hover:text-purple-400 hover:bg-white/5 rounded-lg transition"
+                title="Record voice message"
+              >
+                <Mic className="w-5 h-5" />
+              </button>
+            )}
             <Button
               onClick={handleSendMessage}
-              disabled={!inputValue.trim()}
-              className="bg-purple-600 hover:bg-purple-700 text-white px-6 font-medium"
+              disabled={!inputValue.trim() || isRecording}
+              className="bg-purple-600 hover:bg-purple-700 text-white px-6 font-medium disabled:opacity-50"
             >
               Send →
             </Button>

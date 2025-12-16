@@ -10,7 +10,8 @@ export interface ChatMessage {
   sessionId: string;
   senderId: string;
   content: string;
-  type: "text" | "icebreaker" | "system";
+  type: "text" | "icebreaker" | "system" | "voice";
+  audioUrl?: string;
   createdAt: Date;
 }
 
@@ -70,7 +71,8 @@ export async function sendMessage(
   sessionId: string,
   senderId: string,
   content: string,
-  type: "text" | "icebreaker" | "system" = "text"
+  type: "text" | "icebreaker" | "system" | "voice" = "text",
+  audioUrl?: string
 ): Promise<ChatMessage> {
   try {
     const messageId = nanoid();
@@ -83,6 +85,7 @@ export async function sendMessage(
       senderId,
       content,
       type,
+      audioUrl,
       createdAt: now,
     });
 
@@ -92,6 +95,7 @@ export async function sendMessage(
       senderId,
       content,
       type,
+      audioUrl,
       createdAt: now,
     };
 

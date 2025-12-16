@@ -8,7 +8,7 @@ export async function POST(
   try {
     const { sessionId } = await params;
     const body = await request.json();
-    const { senderId, content, type = "text" } = body;
+    const { senderId, content, type = "text", audioUrl } = body;
 
     if (!senderId || !content) {
       return NextResponse.json(
@@ -18,7 +18,13 @@ export async function POST(
     }
 
     // Just save to database - WebSocket already handles broadcasting
-    const message = await sendMessage(sessionId, senderId, content, type);
+    const message = await sendMessage(
+      sessionId,
+      senderId,
+      content,
+      type,
+      audioUrl
+    );
 
     return NextResponse.json({ message });
   } catch (error) {
