@@ -1,7 +1,7 @@
 import Groq from "groq-sdk";
 import { redis } from "./redis";
 
-const groq = new Groq({ apiKey: process.env.GROQ_API_KEY || "GROQ API KEY" });
+const groq = new Groq({ apiKey: process.env.GROQ_API_KEY || "" });
 
 interface UserPreferences {
   gender?: string;
@@ -27,17 +27,20 @@ export async function generateIcebreakers(
 
   let icebreakers: string[] = [];
 
-  // 1. Try Qwen (via Groq)
-  if (process.env.GROQ_API_KEY) {
+  // 1. Try Qwen (via Groq) - only if API key is valid (starts with gsk_)
+  if (process.env.GROQ_API_KEY && process.env.GROQ_API_KEY.startsWith("gsk_")) {
     try {
       icebreakers = await generateWithQwen(user1Prefs, user2Prefs);
       if (icebreakers.length >= 3) {
         await redis.setex(cacheKey, 300, JSON.stringify(icebreakers)); // Cache for 5 min
         return icebreakers;
       }
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
     } catch (error: any) {
       console.warn("Qwen failed:", error.message || error);
     }
+  } else if (process.env.GROQ_API_KEY) {
+    console.warn("Invalid GROQ_API_KEY format - must start with 'gsk_'");
   }
 
   // 2. Final fallback to mock data
@@ -158,17 +161,20 @@ export async function generateContextualIcebreakers(
 
   let icebreakers: string[] = [];
 
-  // 1. Try Qwen (via Groq)
-  if (process.env.GROQ_API_KEY) {
+  // 1. Try Qwen (via Groq) - only if API key is valid (starts with gsk_)
+  if (process.env.GROQ_API_KEY && process.env.GROQ_API_KEY.startsWith("gsk_")) {
     try {
       icebreakers = await generateContextualWithQwen(conversationHistory);
       if (icebreakers.length >= 3) {
         await redis.setex(cacheKey, 300, JSON.stringify(icebreakers));
         return icebreakers;
       }
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
     } catch (error: any) {
       console.warn("Qwen contextual failed:", error.message || error);
     }
+  } else if (process.env.GROQ_API_KEY) {
+    console.warn("Invalid GROQ_API_KEY format - must start with 'gsk_'");
   }
 
   // 2. Final fallback
