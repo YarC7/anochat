@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { v2 as cloudinary } from "cloudinary";
+import { eq } from "drizzle-orm";
 
 // Configure Cloudinary
 cloudinary.config({
@@ -20,6 +21,26 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Identify authenticated user (prevent spoofing)
+    const { getUserIdFromRequest } = await import("@/lib/auth-utils");
+    const authUserId = await getUserIdFromRequest(request as Request);
+    if (!authUserId) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    // Check premium status
+    const { db } = await import("@/db");
+    const { user: userTable } = await import("@/db/schema");
+    const u = await db
+      .select()
+      .from(userTable)
+      .where(eq(userTable.id, authUserId))
+      .limit(1)
+      .then((r) => r[0]);
+    if (!u?.isPremium) {
+      return NextResponse.json({ error: "Premium required" }, { status: 403 });
+    }
+
     // Convert file to base64
     const bytes = await audioFile.arrayBuffer();
     const buffer = Buffer.from(bytes);
@@ -38,7 +59,7 @@ export async function POST(request: NextRequest) {
       url: result.secure_url,
       publicId: result.public_id,
     });
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
   } catch (error: any) {
     console.error("Error uploading audio:", error);
     return NextResponse.json(

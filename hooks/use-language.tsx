@@ -89,10 +89,10 @@ const translations = {
     // Premium
     premiumHeader: "Nâng cấp gói của bạn",
     plan_free: "Miễn phí",
-    plan_business: "Doanh nghiệp",
+    plan_business: "Premium",
     freeSubtitle: "Xem AI có thể làm gì",
     currentPlanLabel: "Gói hiện tại của bạn",
-    upgradeToBusiness: "Chuyển sang Business",
+    upgradeToBusiness: "Nâng cấp lên Premium",
     recommended: "ĐƯỢC ĐỀ XUẤT",
     goToDashboardNow: "Chuyển đến Bảng điều khiển ngay",
     paymentSuccessful: "Thanh toán thành công!",

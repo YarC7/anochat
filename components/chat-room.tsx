@@ -51,6 +51,13 @@ export function ChatRoom({
   const [showReportForm, setShowReportForm] = useState(false);
   const [reportReason, setReportReason] = useState("");
   const [isSubmittingReport, setIsSubmittingReport] = useState(false);
+  const [isPremiumUser, setIsPremiumUser] = useState(false);
+  const [showUpgradeModal, setShowUpgradeModal] = useState(false);
+  const [usageInfo, setUsageInfo] = useState<{
+    used: number;
+    dailyLimit: number;
+    cooldownRemaining: number;
+  } | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const processedMessageIds = useRef<Set<string>>(new Set());
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
@@ -75,7 +82,26 @@ export function ChatRoom({
       }
     }
     loadHistory();
-  }, [sessionId]);
+
+    // Fetch user plan/usage info
+    async function loadPlan() {
+      try {
+        const res = await fetch(`/api/user/${currentUserId}/plan`);
+        if (res.ok) {
+          const data = await res.json();
+          setIsPremiumUser(!!data.isPremium);
+          setUsageInfo({
+            used: data.used || 0,
+            dailyLimit: data.dailyLimit || (data.isPremium ? 100 : 10),
+            cooldownRemaining: data.cooldownRemaining || 0,
+          });
+        }
+      } catch (err) {
+        console.error("Error fetching plan info:", err);
+      }
+    }
+    loadPlan();
+  }, [sessionId, currentUserId]);
 
   // Handle incoming WebSocket messages (only from partner)
   useEffect(() => {
@@ -177,9 +203,51 @@ export function ChatRoom({
         }),
       });
 
+      if (response.status === 429) {
+        const err = await response.json();
+        if (err.error === "Cooldown") {
+          alert(
+            `Please wait ${err.cooldownRemaining}s before generating again.`
+          );
+        } else if (err.error === "Limit reached") {
+          alert(
+            `Daily limit reached (${err.dailyLimit}). Upgrade to premium for more.`
+          );
+        } else {
+          alert("Rate limit exceeded. Please try later.");
+        }
+        // refresh plan info
+        const planRes = await fetch(`/api/user/${currentUserId}/plan`);
+        if (planRes.ok) setUsageInfo(await planRes.json());
+        return;
+      }
+
       if (response.ok) {
         const data = await response.json();
         setIcebreakers(data.icebreakers || []);
+        if (data.usage) {
+          // set usage and start cooldown timer if needed
+          setUsageInfo({
+            used: data.usage.used || 0,
+            dailyLimit: data.usage.dailyLimit || (isPremiumUser ? 100 : 10),
+            cooldownRemaining: data.usage.cooldown || 0,
+          });
+          if (data.usage.cooldown && data.usage.cooldown > 0) {
+            let remaining = data.usage.cooldown;
+            setUsageInfo((prev) =>
+              prev ? { ...prev, cooldownRemaining: remaining } : prev
+            );
+            const interval = setInterval(() => {
+              remaining -= 1;
+              setUsageInfo((prev) =>
+                prev
+                  ? { ...prev, cooldownRemaining: Math.max(0, remaining) }
+                  : prev
+              );
+              if (remaining <= 0) clearInterval(interval);
+            }, 1000);
+          }
+        }
       }
     } catch (error) {
       console.error("Error generating icebreakers:", error);
@@ -235,8 +303,34 @@ export function ChatRoom({
     setReportReason("");
   };
 
+  // Upgrade modal handlers
+  const handleUpgradeNow = () => {
+    setShowUpgradeModal(false);
+    router.push("/premium");
+  };
+
+  const handleCloseUpgrade = () => {
+    setShowUpgradeModal(false);
+  };
+
   const startRecording = async () => {
+    if (!isPremiumUser) {
+      if (
+        confirm(
+          "Voice messages are available for Premium users only. Upgrade now?"
+        )
+      ) {
+        router.push("/premium");
+      }
+      return;
+    }
+
     try {
+      if (!isPremiumUser) {
+        setShowUpgradeModal(true);
+        return;
+      }
+
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       const mediaRecorder = new MediaRecorder(stream);
       mediaRecorderRef.current = mediaRecorder;
@@ -264,6 +358,10 @@ export function ChatRoom({
           });
 
           if (!uploadResponse.ok) {
+            if (uploadResponse.status === 403) {
+              setShowUpgradeModal(true);
+              return;
+            }
             throw new Error("Failed to upload audio");
           }
 
@@ -299,7 +397,6 @@ export function ChatRoom({
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
-              senderId: currentUserId,
               content: "🎤 Voice message",
               type: "voice",
               audioUrl: cloudinaryUrl,
@@ -605,7 +702,14 @@ export function ChatRoom({
           <div className="flex items-center gap-3">
             <button
               onClick={handleGenerateIcebreakers}
-              disabled={loadingIcebreakers || isRecording}
+              disabled={
+                loadingIcebreakers ||
+                isRecording ||
+                (usageInfo
+                  ? usageInfo.used >= usageInfo.dailyLimit ||
+                    usageInfo.cooldownRemaining > 0
+                  : false)
+              }
               className="p-2 text-gray-400 hover:text-purple-400 hover:bg-white/5 rounded-lg transition disabled:opacity-50"
               title={t("ai_suggestions")}
             >
@@ -615,6 +719,14 @@ export function ChatRoom({
                 <Sparkles className="w-5 h-5" />
               )}
             </button>
+            <div className="text-xs text-gray-400">
+              {usageInfo ? `${usageInfo.used}/${usageInfo.dailyLimit}` : ""}
+              {usageInfo && usageInfo.cooldownRemaining > 0 && (
+                <span className="ml-2 text-amber-400">
+                  ({usageInfo.cooldownRemaining}s)
+                </span>
+              )}
+            </div>
             <Input
               value={inputValue}
               onChange={(e) => setInputValue(e.target.value)}
@@ -657,6 +769,35 @@ export function ChatRoom({
             </span>
           </p>
         </div>
+
+        {/* Upgrade Modal */}
+        {showUpgradeModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+            <div className="bg-[#0f0f1e] rounded-lg p-6 w-full max-w-md border border-white/10">
+              <h3 className="text-lg font-semibold text-white mb-2">
+                Upgrade to Premium
+              </h3>
+              <p className="text-sm text-gray-400 mb-4">
+                Voice messages are available for Premium users. Upgrade to send
+                voice messages and get higher AI limits.
+              </p>
+              <div className="flex gap-3 justify-end">
+                <button
+                  onClick={handleCloseUpgrade}
+                  className="px-4 py-2 bg-white/5 text-white rounded-lg"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleUpgradeNow}
+                  className="px-4 py-2 bg-purple-600 text-white rounded-lg"
+                >
+                  Upgrade
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
