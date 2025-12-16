@@ -184,22 +184,25 @@ export function ChatRoom({
     window.location.reload();
   };
 
-  const handleLeaveRoom = async () => {
+  const handleReport = async () => {
+    const reason = prompt("Why are you reporting this user?");
+    if (!reason) return;
+
     try {
-      // End the session
-      await fetch(`/api/chat/${sessionId}/end`, {
+      await fetch(`/api/chat/${sessionId}/report`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ userId: currentUserId }),
+        body: JSON.stringify({
+          reporterId: currentUserId,
+          reportedUserId: partnerId,
+          reason,
+          sessionId,
+        }),
       });
-
-      // Clear from localStorage
-      localStorage.removeItem(`activeSession_${currentUserId}`);
-
-      // Reload to go back to matching
-      window.location.reload();
+      alert("Report submitted. Thank you for keeping our community safe.");
     } catch (error) {
-      console.error("Error leaving room:", error);
+      console.error("Error reporting user:", error);
+      alert("Failed to submit report. Please try again.");
     }
   };
 
@@ -222,7 +225,7 @@ export function ChatRoom({
             <MessageCircle className="w-5 h-5" />
             Active Chat
           </button>
-          <button
+          {/* <button
             onClick={() => router.push("/dashboard")}
             className="w-full flex items-center gap-3 px-4 py-3 rounded-lg text-gray-400 hover:bg-white/5 transition"
           >
@@ -231,7 +234,7 @@ export function ChatRoom({
             <span className="ml-auto bg-purple-600 text-white text-xs px-2 py-1 rounded-full">
               3
             </span>
-          </button>
+          </button> */}
           <button
             onClick={() => router.push("/premium")}
             className="w-full flex items-center gap-3 px-4 py-3 rounded-lg text-gray-400 hover:bg-white/5 transition"
@@ -281,9 +284,9 @@ export function ChatRoom({
           </div>
           <div className="flex items-center gap-2">
             <button
-              onClick={handleLeaveRoom}
+              onClick={handleReport}
               className="p-2 text-gray-400 hover:text-red-400 hover:bg-white/5 rounded-lg transition"
-              title="Leave chat room"
+              title="Report user"
             >
               <Flag className="w-5 h-5" />
             </button>
