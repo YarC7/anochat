@@ -150,13 +150,21 @@
   animation-delay: 2s;
 }
 
-
 .my-scroll-container {
   overflow-y: scroll;
-  -ms-overflow-style: none; 
+  -ms-overflow-style: none;
   scrollbar-width: none;
 }
 
 .my-scroll-container::-webkit-scrollbar {
   display: none;
+}
+
+/* Fix white background issue */
+html,
+body {
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  background-color: #1a1a2e;
 }

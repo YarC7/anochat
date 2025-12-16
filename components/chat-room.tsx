@@ -53,16 +53,21 @@ export function ChatRoom({
   useEffect(() => {
     if (lastMessage && lastMessage.sessionId === sessionId) {
       const newMessage: ChatMessage = {
-        id: lastMessage.id || Date.now().toString(),
+        id: Date.now().toString(),
         sessionId: lastMessage.sessionId,
-        senderId: lastMessage.senderId,
-        content: lastMessage.content,
-        type: lastMessage.type || "text",
+        senderId: lastMessage.senderId || currentUserId,
+        content: lastMessage.content || "",
+        type:
+          lastMessage.type === "text" ||
+          lastMessage.type === "system" ||
+          lastMessage.type === "icebreaker"
+            ? lastMessage.type
+            : "text",
         createdAt: new Date(lastMessage.timestamp || Date.now()),
       };
       setMessages((prev) => [...prev, newMessage]);
     }
-  }, [lastMessage, sessionId]);
+  }, [lastMessage, sessionId, currentUserId]);
 
   // Auto-scroll to bottom
   useEffect(() => {

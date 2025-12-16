@@ -23,8 +23,9 @@ export async function POST(
     // Publish to Redis for WebSocket broadcast
     await publishChannel("broadcast", {
       type: "chat_message",
-      ...message,
       sessionId,
+      senderId: message.senderId,
+      content: message.content,
       timestamp: message.createdAt.getTime(),
     });
 

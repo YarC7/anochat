@@ -10,7 +10,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Missing userId" }, { status: 400 });
     }
 
-    const result = await joinMatchingQueue(userId, preferences);
+    const result = await joinMatchingQueue(userId);
 
     return NextResponse.json(result);
   } catch (error) {

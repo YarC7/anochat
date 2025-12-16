@@ -1,24 +1,17 @@
 import { redis } from "./redis";
 import { db } from "@/db";
 import { user, chatSession } from "@/db/schema";
-import { eq, and } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import { nanoid } from "nanoid";
 
 const QUEUE_KEY = "matching:queue";
 const MATCH_TIMEOUT = 30000; // 30s timeout
 
-interface MatchingUser {
-  userId: string;
-  chatStyle?: string;
-  timestamp: number;
-}
-
 /**
  * Add user to matching queue
  */
 export async function joinMatchingQueue(
-  userId: string,
-  preferences?: { chatStyle?: string }
+  userId: string
 ): Promise<{ matched: boolean; sessionId?: string; partnerId?: string }> {
   try {
     // Check if already in queue
@@ -64,6 +57,18 @@ export async function joinMatchingQueue(
         `session:${sessionId}`,
         3600,
         JSON.stringify({ user1Id: userId, user2Id: partnerId })
+      );
+
+      // Publish match notification to Redis for WebSocket broadcast
+      await redis.publish(
+        "broadcast",
+        JSON.stringify({
+          type: "match_found",
+          userId: partnerId,
+          sessionId,
+          partnerId: userId,
+          timestamp: Date.now(),
+        })
       );
 
       return { matched: true, sessionId, partnerId };

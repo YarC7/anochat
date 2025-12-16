@@ -59,8 +59,6 @@ async function generateWithQwen(
 
   const userPrompt = buildPrompt(user1Prefs, user2Prefs);
 
-  const userPrompt = buildPrompt(user1Prefs, user2Prefs);
-
   const result = await groq.chat.completions.create({
     model: "qwen/qwen3-32b",
     messages: [
