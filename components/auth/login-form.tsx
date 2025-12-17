@@ -22,7 +22,7 @@ export function LoginForm() {
         },
         {
           onSuccess: () => {
-            router.push("/preferences");
+            router.push("/chat");
           },
           onError: (ctx) => {
             setError(ctx.error.message ?? "Invalid email or password");

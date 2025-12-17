@@ -58,6 +58,7 @@ export function ChatRoom({
     dailyLimit: number;
     cooldownRemaining: number;
   } | null>(null);
+  const [isMobile, setIsMobile] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const processedMessageIds = useRef<Set<string>>(new Set());
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
@@ -67,6 +68,19 @@ export function ChatRoom({
   const { t, language } = useLanguage();
 
   const { isConnected, lastMessage, sendMessage } = useWebSocket();
+
+  // Detect mobile
+  useEffect(() => {
+    const checkMobile = () => {
+      setIsMobile(window.innerWidth < 768);
+      if (window.innerWidth < 768) {
+        setSidebarVisible(false);
+      }
+    };
+    checkMobile();
+    window.addEventListener("resize", checkMobile);
+    return () => window.removeEventListener("resize", checkMobile);
+  }, []);
 
   // Load conversation history
   useEffect(() => {
@@ -193,15 +207,22 @@ export function ChatRoom({
     setLoadingIcebreakers(true);
     try {
       const conversationHistory = messages.map((m) => m.content);
+
+      console.log("🚀 [Chat] Calling icebreaker API...");
+
       const response = await fetch("/api/icebreakers/contextual", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
+        credentials: "include", // CRITICAL: Send cookies with request
         body: JSON.stringify({
           conversationHistory,
           sessionId,
           language,
+          userId: currentUserId,
         }),
       });
+
+      console.log("📡 [Chat] Response status:", response.status);
 
       if (response.status === 429) {
         const err = await response.json();
@@ -442,21 +463,35 @@ export function ChatRoom({
   };
 
   return (
-    <div className="flex h-screen bg-[#0f0f1e]">
+    <div className="flex h-screen bg-[#0f0f1e] overflow-hidden">
+      {/* Mobile overlay */}
+      {isMobile && sidebarVisible && (
+        <div
+          className="fixed inset-0 bg-black/50 z-40"
+          onClick={() => setSidebarVisible(false)}
+        />
+      )}
+
       {/* Sidebar */}
       <div
         className={`bg-[#16162a] border-r border-white/10 flex flex-col transition-all duration-300 ${
-          sidebarVisible ? "w-64" : "w-16"
+          isMobile
+            ? sidebarVisible
+              ? "fixed left-0 top-0 bottom-0 w-64 z-50"
+              : "hidden"
+            : sidebarVisible
+            ? "w-64"
+            : "w-16"
         }`}
       >
         <div
-          className={`p-6 flex items-center ${
+          className={`p-4 md:p-6 flex items-center ${
             sidebarVisible ? "justify-between" : "justify-center"
           }`}
         >
           {sidebarVisible && (
-            <h1 className="text-xl font-bold text-white flex items-center gap-2">
-              <MessageCircle className="w-6 h-6 text-purple-500" />
+            <h1 className="text-lg md:text-xl font-bold text-white flex items-center gap-2">
+              <MessageCircle className="w-5 h-5 md:w-6 md:h-6 text-purple-500" />
               AnoChat
             </h1>
           )}
@@ -465,7 +500,11 @@ export function ChatRoom({
             className="p-2 text-gray-400 hover:text-white hover:bg-white/5 rounded-lg transition"
             title={sidebarVisible ? t("hide_sidebar") : t("show_sidebar")}
           >
-            <Menu className="w-5 h-5" />
+            {sidebarVisible && isMobile ? (
+              <X className="w-5 h-5" />
+            ) : (
+              <Menu className="w-5 h-5" />
+            )}
           </button>
         </div>
 
@@ -525,83 +564,92 @@ export function ChatRoom({
       {/* Main Chat Area */}
       <div className="flex-1 flex flex-col relative">
         {/* Chat Header */}
-        <div className="bg-[#16162a] border-b border-white/10 px-6 py-5 flex items-center justify-between">
-          <div className="flex items-center gap-4">
-            <div className="w-12 h-12 rounded-full bg-linear-to-br from-blue-500 to-cyan-500 flex items-center justify-center">
-              <Users className="w-6 h-6 text-white" />
+        <div className="bg-[#16162a] border-b border-white/10 px-3 md:px-6 py-3 md:py-5 flex items-center justify-between">
+          <div className="flex items-center gap-2 md:gap-4 flex-1 min-w-0">
+            {isMobile && (
+              <button
+                onClick={() => setSidebarVisible(true)}
+                className="p-2 text-gray-400 hover:text-white hover:bg-white/5 rounded-lg transition shrink-0"
+              >
+                <Menu className="w-5 h-5" />
+              </button>
+            )}
+            <div className="w-10 h-10 md:w-12 md:h-12 rounded-full bg-linear-to-br from-blue-500 to-cyan-500 flex items-center justify-center shrink-0">
+              <Users className="w-5 h-5 md:w-6 md:h-6 text-white" />
             </div>
-            <div>
-              <h2 className="text-white font-semibold text-lg">
+            <div className="min-w-0">
+              <h2 className="text-white font-semibold text-sm md:text-lg truncate">
                 {t("stranger")} #{partnerId.slice(-4)}
               </h2>
-              <p className="text-sm text-gray-400">
+              <p className="text-xs md:text-sm text-gray-400">
                 {isConnected
                   ? `🟢 ${t("connected")}`
                   : `🔴 ${t("disconnected")}`}
               </p>
             </div>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1 md:gap-2 shrink-0">
             <button
               onClick={handleReport}
               className="p-2 text-gray-400 hover:text-red-400 hover:bg-white/5 rounded-lg transition"
               title={t("report_user")}
             >
-              <Flag className="w-5 h-5" />
+              <Flag className="w-4 h-4 md:w-5 md:h-5" />
             </button>
             <Button
               onClick={handleNextStranger}
-              className="bg-purple-600 hover:bg-purple-700 text-white font-medium"
+              className="bg-purple-600 hover:bg-purple-700 text-white font-medium text-xs md:text-sm px-3 md:px-4 py-2"
             >
-              {t("next_stranger")}
+              <span className="hidden sm:inline">{t("next_stranger")}</span>
+              <span className="sm:hidden">Next</span>
             </Button>
           </div>
         </div>
 
         {/* Messages Container */}
-        <div className="flex-1 overflow-y-auto px-6 py-4 space-y-4 my-scroll-container">
+        <div className="flex-1 overflow-y-auto px-3 md:px-6 py-3 md:py-4 space-y-3 md:space-y-4 my-scroll-container">
           {/* System message */}
           <div className="flex justify-center">
-            <div className="bg-white/5 text-gray-400 text-xs px-4 py-2 rounded-full">
+            <div className="bg-white/5 text-gray-400 text-xs px-3 md:px-4 py-1.5 md:py-2 rounded-full">
               {t("today")} 10:23 AM
             </div>
           </div>
           <div className="flex justify-center">
-            <div className="bg-white/5 text-gray-400 text-xs px-4 py-2 rounded-full">
+            <div className="bg-white/5 text-gray-400 text-xs px-3 md:px-4 py-1.5 md:py-2 rounded-full">
               {t("chatting_with_stranger")}
             </div>
           </div>
 
-          {messages.length === 0 && (
+          {/* {messages.length === 0 && (
             <div className="text-center py-12">
               <p className="text-gray-500 mb-4">{t("no_messages")}</p>
             </div>
-          )}
+          )} */}
 
           {messages.map((message) => {
             const isMe = message.senderId === currentUserId;
             return (
               <div
                 key={message.id}
-                className={`flex gap-4 ${
+                className={`flex gap-2 md:gap-4 ${
                   isMe ? "flex-row-reverse" : "flex-row"
                 }`}
               >
                 {/* Message bubble */}
-                <div className="flex flex-col max-w-[65%]">
+                <div className="flex flex-col max-w-[80%] md:max-w-[65%]">
                   <div
-                    className={`px-5 py-2 rounded-2xl ${
+                    className={`px-3 md:px-5 py-2 rounded-2xl ${
                       isMe
                         ? "bg-purple-600 text-white rounded-tr-sm"
                         : "bg-[#2a2a3e] text-gray-100 rounded-tl-sm"
                     }`}
                   >
                     {message.type === "voice" && message.audioUrl ? (
-                      <audio controls className="h-8">
+                      <audio controls className="h-8 w-full max-w-xs">
                         <source src={message.audioUrl} type="audio/webm" />
                       </audio>
                     ) : (
-                      <p className="text-base leading-relaxed">
+                      <p className="text-sm md:text-base leading-relaxed wrap-break-word">
                         {message.content}
                       </p>
                     )}
@@ -615,8 +663,8 @@ export function ChatRoom({
 
         {/* Report Form Modal */}
         {showReportForm && (
-          <div className="absolute inset-0 bg-black/50 backdrop-blur-sm z-20 flex items-center justify-center p-6">
-            <div className="bg-[#16162a] rounded-2xl border border-white/10 p-6 max-w-md w-full shadow-2xl">
+          <div className="absolute inset-0 bg-black/50 backdrop-blur-sm z-20 flex items-center justify-center p-3 md:p-6">
+            <div className="bg-[#16162a] rounded-2xl border border-white/10 p-4 md:p-6 max-w-md w-full shadow-2xl">
               <div className="flex items-center justify-between mb-4">
                 <h3 className="text-xl font-bold text-white flex items-center gap-2">
                   <Flag className="w-5 h-5 text-red-400" />
@@ -660,8 +708,8 @@ export function ChatRoom({
 
         {/* AI Conversation Starters - Overlay */}
         {icebreakers.length > 0 && (
-          <div className="absolute bottom-28 left-0 right-0 px-6 py-4 bg-[#16162a] border-t border-white/10 shadow-2xl z-10">
-            <div className="flex items-center justify-between mb-3">
+          <div className="absolute bottom-20 md:bottom-28 left-0 right-0 px-3 md:px-6 py-3 md:py-4 bg-[#16162a] border-t border-white/10 shadow-2xl z-10 max-h-[40vh] overflow-y-auto">
+            <div className="flex items-center justify-between mb-2 md:mb-3">
               <div className="flex items-center gap-2">
                 <Sparkles className="w-4 h-4 text-purple-400" />
                 <span className="text-xs font-medium text-gray-400 uppercase tracking-wide">
@@ -670,17 +718,17 @@ export function ChatRoom({
               </div>
               <button
                 onClick={() => setIcebreakers([])}
-                className="text-xs text-gray-500 hover:text-gray-300"
+                className="text-xs text-gray-500 hover:text-gray-300 p-1"
               >
                 ✕
               </button>
             </div>
-            <div className="grid grid-cols-3 gap-2">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
               {icebreakers.map((ice, idx) => (
                 <button
                   key={idx}
                   onClick={() => handleUseIcebreaker(ice)}
-                  className="px-4 py-2.5 bg-[#2a2a3e] hover:bg-purple-600 hover:text-white text-gray-300 text-sm rounded-lg transition text-left truncate"
+                  className="px-3 md:px-4 py-2 md:py-2.5 bg-[#2a2a3e] hover:bg-purple-600 hover:text-white text-gray-300 text-xs md:text-sm rounded-lg transition text-left line-clamp-2"
                 >
                   {ice}
                 </button>
@@ -690,16 +738,16 @@ export function ChatRoom({
         )}
 
         {/* Message Input */}
-        <div className="bg-[#16162a] border-t border-white/10 px-6 py-4">
+        <div className="bg-[#16162a] border-t border-white/10 px-3 md:px-6 py-3 md:py-4">
           {isRecording && (
-            <div className="mb-3 flex items-center justify-center gap-3 text-red-400">
-              <div className="w-3 h-3 rounded-full bg-red-500 animate-pulse" />
-              <span className="text-sm font-medium">
+            <div className="mb-2 md:mb-3 flex items-center justify-center gap-2 md:gap-3 text-red-400">
+              <div className="w-2 h-2 md:w-3 md:h-3 rounded-full bg-red-500 animate-pulse" />
+              <span className="text-xs md:text-sm font-medium">
                 {t("recording")} {formatTime(recordingTime)}
               </span>
             </div>
           )}
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-1.5 md:gap-3">
             <button
               onClick={handleGenerateIcebreakers}
               disabled={
@@ -710,16 +758,16 @@ export function ChatRoom({
                     usageInfo.cooldownRemaining > 0
                   : false)
               }
-              className="p-2 text-gray-400 hover:text-purple-400 hover:bg-white/5 rounded-lg transition disabled:opacity-50"
+              className="p-2 text-gray-400 hover:text-purple-400 hover:bg-white/5 rounded-lg transition disabled:opacity-50 shrink-0"
               title={t("ai_suggestions")}
             >
               {loadingIcebreakers ? (
-                <Loader2 className="w-5 h-5 animate-spin" />
+                <Loader2 className="w-4 h-4 md:w-5 md:h-5 animate-spin" />
               ) : (
-                <Sparkles className="w-5 h-5" />
+                <Sparkles className="w-4 h-4 md:w-5 md:h-5" />
               )}
             </button>
-            <div className="text-xs text-gray-400">
+            <div className="text-xs text-gray-400 hidden sm:block">
               {usageInfo ? `${usageInfo.used}/${usageInfo.dailyLimit}` : ""}
               {usageInfo && usageInfo.cooldownRemaining > 0 && (
                 <span className="ml-2 text-amber-400">
@@ -735,34 +783,35 @@ export function ChatRoom({
               }
               placeholder={t("placeholder_type_message")}
               disabled={isRecording}
-              className="flex-1 bg-[#0f0f1e] border-white/10 text-white placeholder:text-gray-500 focus:border-purple-500 disabled:opacity-50"
+              className="flex-1 bg-[#0f0f1e] border-white/10 text-white placeholder:text-gray-500 focus:border-purple-500 disabled:opacity-50 text-sm md:text-base"
             />
             {isRecording ? (
               <button
                 onClick={stopRecording}
-                className="p-3 text-red-400 hover:text-red-300 hover:bg-white/5 rounded-lg transition"
+                className="p-2 md:p-3 text-red-400 hover:text-red-300 hover:bg-white/5 rounded-lg transition shrink-0"
                 title={t("recording")}
               >
-                <Square className="w-5 h-5" />
+                <Square className="w-4 h-4 md:w-5 md:h-5" />
               </button>
             ) : (
               <button
                 onClick={startRecording}
-                className="p-3 text-gray-400 hover:text-purple-400 hover:bg-white/5 rounded-lg transition"
+                className="p-2 md:p-3 text-gray-400 hover:text-purple-400 hover:bg-white/5 rounded-lg transition shrink-0"
                 title={t("voice_message")}
               >
-                <Mic className="w-5 h-5" />
+                <Mic className="w-4 h-4 md:w-5 md:h-5" />
               </button>
             )}
             <Button
               onClick={handleSendMessage}
               disabled={!inputValue.trim() || isRecording}
-              className="bg-purple-600 hover:bg-purple-700 text-white px-6 font-medium disabled:opacity-50"
+              className="bg-purple-600 hover:bg-purple-700 text-white px-3 md:px-6 py-2 font-medium disabled:opacity-50 text-xs md:text-sm shrink-0"
             >
-              {t("send")}
+              <span className="hidden sm:inline">{t("send")}</span>
+              <span className="sm:hidden">→</span>
             </Button>
           </div>
-          <p className="text-xs text-gray-600 mt-2 text-center">
+          <p className="text-[10px] md:text-xs text-gray-600 mt-2 text-center">
             {t("chats_anonymous")}{" "}
             <span className="underline cursor-pointer">
               {t("community_guidelines")}
@@ -772,8 +821,8 @@ export function ChatRoom({
 
         {/* Upgrade Modal */}
         {showUpgradeModal && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-            <div className="bg-[#0f0f1e] rounded-lg p-6 w-full max-w-md border border-white/10">
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-3">
+            <div className="bg-[#0f0f1e] rounded-lg p-4 md:p-6 w-full max-w-md border border-white/10">
               <h3 className="text-lg font-semibold text-white mb-2">
                 Upgrade to Premium
               </h3>
