@@ -135,7 +135,8 @@ export async function getConversationHistory(
       limit - 1
     );
     if (cached.length > 0) {
-      return cached.map((msg) => JSON.parse(msg) as ChatMessage);
+      // Redis cache stores messages in reverse order (newest first), so reverse it
+      return cached.map((msg) => JSON.parse(msg) as ChatMessage).reverse();
     }
 
     // Fallback to DB
@@ -151,7 +152,7 @@ export async function getConversationHistory(
     const messages = rows.map((r: any) => {
       const t = (r.type || "text") as string;
       const type =
-        t === "icebreaker" || t === "system" || t === "text"
+        t === "icebreaker" || t === "system" || t === "text" || t === "voice"
           ? (t as ChatMessage["type"])
           : "text";
 
@@ -161,6 +162,7 @@ export async function getConversationHistory(
         senderId: r.senderId,
         content: r.content,
         type,
+        audioUrl: r.audioUrl || undefined,
         createdAt:
           r.createdAt instanceof Date ? r.createdAt : new Date(r.createdAt),
       } as ChatMessage;

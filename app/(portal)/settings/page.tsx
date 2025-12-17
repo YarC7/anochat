@@ -158,7 +158,10 @@ export default function SettingsPage() {
               <button className="p-2 hover:bg-white/5 rounded-lg transition-colors">
                 <BellRing className="text-gray-400" />
               </button>
-              <button className="p-2 hover:bg-white/5 rounded-lg transition-colors">
+              <button
+                className="p-2 hover:bg-white/5 rounded-lg transition-colors"
+                onClick={handleLogout}
+              >
                 <LogOut className="text-gray-400" />
               </button>
               <div className="w-10 h-10 rounded-full bg-linear-to-br from-orange-400 to-pink-400 flex items-center justify-center">
@@ -261,27 +264,6 @@ export default function SettingsPage() {
                     {t("verify")}
                   </button>
                 </div>
-              </div>
-
-              {/* Logout Section */}
-              <div className="bg-[#1e1e32] rounded-2xl border border-white/10 p-6">
-                <div className="flex items-center gap-2 mb-4">
-                  <LogOut className="text-white" />
-                  <h3 className="text-white font-semibold">
-                    {t("logout") || "Logout"}
-                  </h3>
-                </div>
-                <p className="text-gray-400 text-sm mb-4">
-                  {t("logoutDescription") ||
-                    "Sign out of your account on this device."}
-                </p>
-                <button
-                  onClick={handleLogout}
-                  className="px-6 py-2.5 bg-purple-600 hover:bg-purple-700 text-white font-semibold rounded-lg transition-colors flex items-center gap-2"
-                >
-                  <LogOut className="w-4 h-4" />
-                  {t("logout") || "Logout"}
-                </button>
               </div>
 
               {/* Danger Zone */}

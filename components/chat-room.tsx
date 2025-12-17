@@ -86,7 +86,9 @@ export function ChatRoom({
   useEffect(() => {
     async function loadHistory() {
       try {
-        const response = await fetch(`/api/chat/${sessionId}/messages`);
+        const response = await fetch(`/api/chat/${sessionId}/messages`, {
+          credentials: "include",
+        });
         if (response.ok) {
           const data = await response.json();
           setMessages(data.messages || []);
@@ -100,7 +102,9 @@ export function ChatRoom({
     // Fetch user plan/usage info
     async function loadPlan() {
       try {
-        const res = await fetch(`/api/user/${currentUserId}/plan`);
+        const res = await fetch(`/api/user/${currentUserId}/plan`, {
+          credentials: "include",
+        });
         if (res.ok) {
           const data = await res.json();
           setIsPremiumUser(!!data.isPremium);
@@ -190,16 +194,31 @@ export function ChatRoom({
 
     // Also save to backend
     try {
-      await fetch(`/api/chat/${sessionId}/send`, {
+      const response = await fetch(`/api/chat/${sessionId}/send`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
+        credentials: "include",
         body: JSON.stringify({
           senderId: currentUserId,
           content,
         }),
       });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        console.error("Failed to save message to database:", {
+          status: response.status,
+          statusText: response.statusText,
+          error: errorData,
+        });
+
+        // Optionally show user feedback
+        // alert("Message sent but failed to save. It may not persist after refresh.");
+      }
     } catch (error) {
-      console.error("Error sending message:", error);
+      console.error("Error sending message to backend:", error);
+      // Optionally show user feedback
+      // alert("Message sent but failed to save to database. It may not persist after refresh.");
     }
   };
 
@@ -417,6 +436,7 @@ export function ChatRoom({
           await fetch(`/api/chat/${sessionId}/send`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
+            credentials: "include",
             body: JSON.stringify({
               content: "🎤 Voice message",
               type: "voice",

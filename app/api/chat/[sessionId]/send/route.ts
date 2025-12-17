@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { sendMessage } from "@/lib/chat";
 import { eq } from "drizzle-orm";
+import { auth } from "@/lib/auth";
 
 export async function POST(
   request: Request,
@@ -11,12 +12,16 @@ export async function POST(
     const body = await request.json();
     const { content, type = "text", audioUrl } = body;
 
-    // Identify authenticated user (prevent spoofing)
-    const { getUserIdFromRequest } = await import("@/lib/auth-utils");
-    const authUserId = await getUserIdFromRequest(request as Request);
-    if (!authUserId) {
+    // Identify authenticated user using better-auth
+    const session = await auth.api.getSession({ headers: request.headers });
+
+    if (!session?.user?.id) {
+      console.log("❌ [Send Message] No valid session found");
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
+
+    const authUserId = session.user.id;
+    console.log("✅ [Send Message] Authenticated user:", authUserId);
 
     if (!content) {
       return NextResponse.json({ error: "Missing content" }, { status: 400 });

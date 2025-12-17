@@ -3,22 +3,26 @@ import { db } from "@/db";
 import { user as userTable } from "@/db/schema";
 import { redis } from "@/lib/redis";
 import { eq } from "drizzle-orm";
+import { auth } from "@/lib/auth";
 
 export async function GET(
   request: Request,
-  { params }: { params: { userId: string } }
+  { params }: { params: Promise<{ userId: string }> }
 ) {
   try {
-    const { userId } = params;
+    const { userId } = await params;
     if (!userId)
       return NextResponse.json({ error: "Missing userId" }, { status: 400 });
 
-    // Ensure the requester is the same user (prevent spoofing)
-    const { getUserIdFromRequest } = await import("@/lib/auth-utils");
-    const authUserId = await getUserIdFromRequest(request);
-    if (!authUserId || authUserId !== userId) {
+    // Ensure the requester is the same user using better-auth
+    const session = await auth.api.getSession({ headers: request.headers });
+
+    if (!session?.user?.id || session.user.id !== userId) {
+      console.log("❌ [Plan] Unauthorized access attempt");
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
+
+    console.log("✅ [Plan] Authenticated user:", session.user.id);
 
     const u = await db
       .select()
