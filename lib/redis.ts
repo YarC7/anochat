@@ -13,7 +13,7 @@ function createRedis() {
       return Math.min(50 * times, 2000);
     },
   });
-  _redis.on("error", (err: any) => {
+  _redis.on("error", (err) => {
     // Log but don't crash the process during build
     console.warn("Redis error (non-fatal):", err?.message ?? err);
   });
@@ -31,7 +31,7 @@ export const redis = new Proxy(
   {
     get(_, prop: string) {
       const r = createRedis();
-      const val = (r as any)[prop];
+      const val = (r)[prop];
       if (typeof val === "function") return val.bind(r);
       return val;
     },
