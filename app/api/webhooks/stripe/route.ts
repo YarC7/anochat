@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { stripe } from "@/lib/stripe";
+import { getStripe } from "@/lib/stripe";
 import type Stripe from "stripe";
 import { db } from "@/db";
 import { user } from "@/db/schema";
@@ -15,6 +15,8 @@ export async function POST(request: Request) {
       { status: 500 }
     );
   }
+
+  const stripe = getStripe();
 
   const payload = await request.text();
   const sig = request.headers.get("stripe-signature");

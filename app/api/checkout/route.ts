@@ -1,10 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
-import { stripe } from "@/lib/stripe";
+import { getStripe } from "@/lib/stripe";
 import { getUserIdFromRequest } from "@/lib/auth-utils";
 
 export async function POST(req: NextRequest) {
   try {
     const { priceId } = await req.json();
+
+    const stripe = getStripe();
 
     // Require authenticated user to be associated with Checkout session
     const userId = await getUserIdFromRequest(req as Request);
