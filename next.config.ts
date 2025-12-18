@@ -1,10 +1,12 @@
 import type { NextConfig } from "next";
 
+const isStaticExport = process.env.NEXT_OUTPUT === "export";
+
 const nextConfig: NextConfig = {
   /* config options here */
-  output: "export",
+  output: isStaticExport ? "export" : undefined,
   images: {
-    unoptimized: true, // Required for static export
+    unoptimized: isStaticExport, // Required for static export
   },
   reactStrictMode: false, // Disable to prevent double mount in dev
   async headers() {

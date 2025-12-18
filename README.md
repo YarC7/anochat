@@ -113,3 +113,49 @@ The `docker-compose.yml` includes:
 ## 📜 License
 
 This project is private and for playground purposes.
+
+---
+
+## 🚀 CI/CD: Deploy to AWS EC2 (SSH)
+
+This repo includes a GitHub Actions workflow that builds the Docker image, pushes it to GHCR, then SSHes into an EC2 instance and deploys via Docker Compose.
+
+Workflow: [.github/workflows/deploy-ec2.yml](.github/workflows/deploy-ec2.yml)
+
+### 1) GitHub Secrets required
+
+Configure these repository secrets:
+
+- `EC2_HOST` 1.2.3.4 or your instance DNS
+- `EC2_USER`  e.g. `ubuntu`
+- `EC2_SSH_KEY`  private key (PEM contents) that can SSH into the instance
+- `EC2_PORT`  usually `22`
+- `EC2_APP_DIR`  e.g. `/opt/playground`
+- `GHCR_TOKEN`  a GitHub Personal Access Token with `write:packages` (and `read:packages`), used to push/pull the image
+
+### 2) EC2 one-time setup
+
+On the EC2 instance:
+
+- Install Docker + Docker Compose plugin
+- Create the app directory and a runtime `.env` file:
+
+Example:
+
+```bash
+sudo mkdir -p /opt/playground
+sudo nano /opt/playground/.env
+```
+
+The `.env` **must** include:
+
+- `APP_IMAGE=ghcr.io/<lowercase-owner>/playground:latest`
+
+And any runtime variables your app needs (Stripe keys, auth secrets, etc.).
+
+### 3) Deploy
+
+- Push to `main` (or run the workflow manually via `workflow_dispatch`).
+- The workflow uploads [docker-compose.prod.yml](docker-compose.prod.yml) to the server and runs:
+  - `docker compose pull`
+  - `docker compose up -d`
