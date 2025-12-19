@@ -49,29 +49,6 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-      - name: Build & push ws image
-        uses: docker/build-push-action@v6
-        with:
-          context: .
-          target: ws-runner
-          push: true
-          tags: |
-            ghcr.io/${{ steps.vars.outputs.owner_lc }}/anochat:latest-ws
-            ghcr.io/${{ steps.vars.outputs.owner_lc }}/anochat:${{ github.sha }}-ws
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-
-      - name: Build & push migrate image
-        uses: docker/build-push-action@v6
-        with:
-          context: .
-          target: migrate-runner
-          push: true
-          tags: |
-            ghcr.io/${{ steps.vars.outputs.owner_lc }}/anochat:latest-migrate
-            ghcr.io/${{ steps.vars.outputs.owner_lc }}/anochat:${{ github.sha }}-migrate
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
       - name: Deploy on EC2
         uses: appleboy/ssh-action@v1.0.3
         env:
@@ -94,15 +71,8 @@ jobs:
             echo "Deploying image tag: $IMAGE_TAG"
             echo "$GHCR_TOKEN" | docker login ghcr.io -u "$GHCR_USER" --password-stdin
 
-            # Update images in .env (used by docker-compose.prod.yml)
-            sed -i "s|^APP_IMAGE_APP=.*|APP_IMAGE_APP=ghcr.io/${OWNER_LC}/anochat:${IMAGE_TAG}-app|" .env || true
-            sed -i "s|^APP_IMAGE_WS=.*|APP_IMAGE_WS=ghcr.io/${OWNER_LC}/anochat:${IMAGE_TAG}-ws|" .env || true
-            sed -i "s|^APP_IMAGE_MIGRATE=.*|APP_IMAGE_MIGRATE=ghcr.io/${OWNER_LC}/anochat:${IMAGE_TAG}-migrate|" .env || true
-
-            # If keys are missing, append them
-            grep -q '^APP_IMAGE_APP=' .env || echo "APP_IMAGE_APP=ghcr.io/${OWNER_LC}/anochat:${IMAGE_TAG}-app" >> .env
-            grep -q '^APP_IMAGE_WS=' .env || echo "APP_IMAGE_WS=ghcr.io/${OWNER_LC}/anochat:${IMAGE_TAG}-ws" >> .env
-            grep -q '^APP_IMAGE_MIGRATE=' .env || echo "APP_IMAGE_MIGRATE=ghcr.io/${OWNER_LC}/anochat:${IMAGE_TAG}-migrate" >> .env
+            sed -i "s|^APP_IMAGE=.*|APP_IMAGE=ghcr.io/${OWNER_LC}/anochat:${IMAGE_TAG}|" .env || true
+            grep -q '^APP_IMAGE=' .env || echo "APP_IMAGE=ghcr.io/${OWNER_LC}/anochat:${IMAGE_TAG}" >> .env
 
             docker compose -f docker-compose.prod.yml pull
 
@@ -115,4 +85,4 @@ jobs:
             # Start/update app + ws
             docker compose -f docker-compose.prod.yml up -d --remove-orphans app ws
 
-            docker image prune -f
+            docker image prune -af
