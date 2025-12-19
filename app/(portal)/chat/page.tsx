@@ -1,29 +1,7 @@
 "use client";
 
-import type { Metadata } from "next";
 import React, { useEffect } from "react";
 
-export const metadata: Metadata = {
-  title: "AnonChat — Chat anonymously",
-  description:
-    "Start anonymous one-on-one chats. Get AI suggestions to break the ice and connect safely.",
-  openGraph: {
-    title: "AnonChat — Chat anonymously",
-    description:
-      "Start anonymous one-on-one chats. Get AI suggestions to break the ice and connect safely.",
-    images: ["/icons/opengraph-image.png"],
-    url: `${
-      process.env.NEXT_PUBLIC_SITE_URL ?? "https://anochat.online"
-    }/portal/chat`,
-  },
-  twitter: {
-    card: "summary_large_image",
-    title: "AnonChat — Chat anonymously",
-    description:
-      "Start anonymous one-on-one chats. Get AI suggestions to break the ice and connect safely.",
-    images: ["/icons/twitter-image.png"],
-  },
-};
 import { useRouter } from "next/navigation";
 import { useSession } from "@/lib/auth-client";
 import { MatchingLobby } from "@/components/matching-lobby";
