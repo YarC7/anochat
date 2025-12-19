@@ -1,6 +1,29 @@
 "use client";
 
+import type { Metadata } from "next";
 import { ProtectedLayout } from "@/components/layout/protected-layout";
+
+export const metadata: Metadata = {
+  title: "AnonChat — Profile",
+  description:
+    "Manage your account information, preferences, and privacy settings.",
+  openGraph: {
+    title: "AnonChat — Profile",
+    description:
+      "Manage your account information, preferences, and privacy settings.",
+    images: ["/icons/opengraph-image.png"],
+    url: `${
+      process.env.NEXT_PUBLIC_SITE_URL ?? "https://anochat.online"
+    }/portal/profile`,
+  },
+  twitter: {
+    card: "summary",
+    title: "AnonChat — Profile",
+    description:
+      "Manage your account information, preferences, and privacy settings.",
+    images: ["/icons/twitter-image.png"],
+  },
+};
 import { useSession } from "@/lib/auth-client";
 import Image from "next/image";
 import { LocaleText } from "@/components/ui/locale-text";

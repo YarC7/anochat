@@ -1,6 +1,29 @@
 "use client";
 
+import type { Metadata } from "next";
 import React, { useState } from "react";
+
+export const metadata: Metadata = {
+  title: "AnonChat — Premium",
+  description:
+    "Upgrade to Premium for more AI icebreakers, ad-free experience, and voice messages.",
+  openGraph: {
+    title: "AnonChat — Premium",
+    description:
+      "Upgrade to Premium for more AI icebreakers, ad-free experience, and voice messages.",
+    images: ["/icons/opengraph-image.png"],
+    url: `${
+      process.env.NEXT_PUBLIC_SITE_URL ?? "https://anochat.online"
+    }/portal/premium`,
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "AnonChat — Premium",
+    description:
+      "Upgrade to Premium for more AI icebreakers, ad-free experience, and voice messages.",
+    images: ["/icons/twitter-image.png"],
+  },
+};
 import { useSession } from "@/lib/auth-client";
 import { useRouter } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
