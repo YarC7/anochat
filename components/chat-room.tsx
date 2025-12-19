@@ -91,7 +91,16 @@ export function ChatRoom({
         });
         if (response.ok) {
           const data = await response.json();
-          setMessages(data.messages || []);
+          // Ensure createdAt fields are Date objects
+          const loaded = (data.messages || []).map(
+            (
+              m: Partial<ChatMessage> & { createdAt?: string | number | Date }
+            ) => ({
+              ...m,
+              createdAt: m.createdAt ? new Date(m.createdAt) : new Date(),
+            })
+          );
+          setMessages(loaded);
         }
       } catch (error) {
         console.error("Error loading history:", error);
@@ -227,8 +236,6 @@ export function ChatRoom({
     try {
       const conversationHistory = messages.map((m) => m.content);
 
-      console.log("🚀 [Chat] Calling icebreaker API...");
-
       const response = await fetch("/api/icebreakers/contextual", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -240,8 +247,6 @@ export function ChatRoom({
           userId: currentUserId,
         }),
       });
-
-      console.log("📡 [Chat] Response status:", response.status);
 
       if (response.status === 429) {
         const err = await response.json();
@@ -482,6 +487,46 @@ export function ChatRoom({
     return `${mins}:${secs.toString().padStart(2, "0")}`;
   };
 
+  // Format a message time like "10:23 AM" using the current language/locale
+  const formatMessageTime = (date: Date) => {
+    try {
+      const locale =
+        language ||
+        (typeof navigator !== "undefined" ? navigator.language : "en-US");
+      return new Intl.DateTimeFormat(locale, {
+        hour: "numeric",
+        minute: "2-digit",
+      }).format(date);
+    } catch {
+      return date.toLocaleTimeString();
+    }
+  };
+
+  // Format a date for separators like "Dec 19, 2025"
+  const formatMessageDate = (date: Date) => {
+    try {
+      const locale =
+        language ||
+        (typeof navigator !== "undefined" ? navigator.language : "en-US");
+      return new Intl.DateTimeFormat(locale, {
+        month: "short",
+        day: "numeric",
+        year: "numeric",
+      }).format(date);
+    } catch {
+      return date.toLocaleDateString();
+    }
+  };
+
+  const isDifferentDay = (a?: Date, b?: Date) => {
+    if (!a || !b) return true;
+    return (
+      a.getFullYear() !== b.getFullYear() ||
+      a.getMonth() !== b.getMonth() ||
+      a.getDate() !== b.getDate()
+    );
+  };
+
   return (
     <div className="flex h-screen bg-[#0f0f1e] overflow-hidden">
       {/* Mobile overlay */}
@@ -646,33 +691,58 @@ export function ChatRoom({
             </div>
           )} */}
 
-          {messages.map((message) => {
+          {messages.map((message, idx) => {
             const isMe = message.senderId === currentUserId;
+            const prev = messages[idx - 1];
+            const showDateSeparator = isDifferentDay(
+              prev?.createdAt as Date | undefined,
+              message.createdAt as Date
+            );
             return (
-              <div
-                key={message.id}
-                className={`flex gap-2 md:gap-4 ${
-                  isMe ? "flex-row-reverse" : "flex-row"
-                }`}
-              >
-                {/* Message bubble */}
-                <div className="flex flex-col max-w-[80%] md:max-w-[65%]">
-                  <div
-                    className={`px-3 md:px-5 py-2 rounded-2xl ${
-                      isMe
-                        ? "bg-purple-600 text-white rounded-tr-sm"
-                        : "bg-[#2a2a3e] text-gray-100 rounded-tl-sm"
-                    }`}
-                  >
-                    {message.type === "voice" && message.audioUrl ? (
-                      <audio controls className="h-8 w-full max-w-xs">
-                        <source src={message.audioUrl} type="audio/webm" />
-                      </audio>
-                    ) : (
-                      <p className="text-sm md:text-base leading-relaxed wrap-break-word">
-                        {message.content}
-                      </p>
-                    )}
+              <div key={message.id}>
+                {showDateSeparator && (
+                  <div className="flex justify-center my-2">
+                    <div className="bg-white/5 text-gray-400 text-xs px-3 py-1.5 rounded-full">
+                      {formatMessageDate(message.createdAt as Date)}
+                    </div>
+                  </div>
+                )}
+
+                <div
+                  className={`flex gap-2 md:gap-4 ${
+                    isMe ? "flex-row-reverse" : "flex-row"
+                  }`}
+                >
+                  {/* Message bubble */}
+                  <div className="flex flex-col max-w-[80%] md:max-w-[65%]">
+                    <div
+                      className={`px-3 md:px-5 py-2 rounded-2xl ${
+                        isMe
+                          ? "bg-purple-600 text-white rounded-tr-sm"
+                          : "bg-[#2a2a3e] text-gray-100 rounded-tl-sm"
+                      }`}
+                    >
+                      {message.type === "voice" && message.audioUrl ? (
+                        <audio controls className="h-8 w-full max-w-xs">
+                          <source src={message.audioUrl} type="audio/webm" />
+                        </audio>
+                      ) : (
+                        <p className="text-sm md:text-base leading-relaxed wrap-break-word">
+                          {message.content}
+                        </p>
+                      )}
+
+                      {/* Timestamp */}
+                      <div
+                        className={`text-[11px] mt-1 ${
+                          isMe
+                            ? "text-white/80 text-right"
+                            : "text-gray-400 text-right"
+                        }`}
+                      >
+                        {formatMessageTime(message.createdAt as Date)}
+                      </div>
+                    </div>
                   </div>
                 </div>
               </div>

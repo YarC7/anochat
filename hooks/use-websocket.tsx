@@ -53,11 +53,11 @@ export function useWebSocket(options: UseWebSocketOptions = {}) {
     isConnectingRef.current = true;
 
     try {
-      console.log("Connecting to WebSocket:", url);
+      // console.log("Connecting to WebSocket:", url);
       const ws = new WebSocket(url);
 
       ws.onopen = () => {
-        console.log("✓ WebSocket connected");
+        // console.log("✓ WebSocket connected");
         setIsConnected(true);
         isConnectingRef.current = false;
         retryCountRef.current = 0; // Reset retry count on successful connection
