@@ -41,7 +41,7 @@ jobs:
         uses: docker/build-push-action@v6
         with:
           context: .
-          target: app-runner
+          target: runner
           push: true
           tags: |
             ghcr.io/${{ steps.vars.outputs.owner_lc }}/anochat:latest-app
