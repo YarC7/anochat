@@ -1,6 +1,11 @@
-node_modules.next;
-dist.env.dockerignore;
-Dockerfile;
-docker - compose.yml.git.vscode;
-pnpm - lock.yaml;
-npm - debug.log.DS_Store;
+node_modules
+.next
+dist
+.env.dockerignore
+Dockerfile
+docker-compose.yml
+.git
+.vscode
+pnpm-lock.yaml
+npm-debug.log
+.DS_Store

@@ -10,6 +10,10 @@ permissions:
   contents: read
   packages: write
 
+concurrency:
+  group: deploy-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   deploy:
     runs-on: ubuntu-latest
@@ -33,40 +37,82 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Build & push image
+      - name: Build & push app image (standalone)
         uses: docker/build-push-action@v6
         with:
           context: .
+          target: app-runner
           push: true
           tags: |
-            ghcr.io/${{ steps.vars.outputs.owner_lc }}/anochat:latest
-            ghcr.io/${{ steps.vars.outputs.owner_lc }}/anochat:${{ github.sha }}
+            ghcr.io/${{ steps.vars.outputs.owner_lc }}/anochat:latest-app
+            ghcr.io/${{ steps.vars.outputs.owner_lc }}/anochat:${{ github.sha }}-app
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
 
+      - name: Build & push ws image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          target: ws-runner
+          push: true
+          tags: |
+            ghcr.io/${{ steps.vars.outputs.owner_lc }}/anochat:latest-ws
+            ghcr.io/${{ steps.vars.outputs.owner_lc }}/anochat:${{ github.sha }}-ws
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Build & push migrate image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          target: migrate-runner
+          push: true
+          tags: |
+            ghcr.io/${{ steps.vars.outputs.owner_lc }}/anochat:latest-migrate
+            ghcr.io/${{ steps.vars.outputs.owner_lc }}/anochat:${{ github.sha }}-migrate
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
       - name: Deploy on EC2
         uses: appleboy/ssh-action@v1.0.3
         env:
           APP_DIR: ${{ secrets.EC2_APP_DIR }}
           IMAGE_TAG: ${{ github.sha }}
           GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GHCR_USER: ${{ github.actor }}
+          OWNER_LC: ${{ steps.vars.outputs.owner_lc }}
         with:
           host: ${{ secrets.EC2_HOST }}
           username: ${{ secrets.EC2_USER }}
           key: ${{ secrets.EC2_SSH_KEY }}
           port: ${{ secrets.EC2_PORT }}
-          envs: APP_DIR,IMAGE_TAG,GHCR_TOKEN
+          envs: APP_DIR,IMAGE_TAG,GHCR_TOKEN,GHCR_USER,OWNER_LC
           script: |
             set -e
 
             cd "$APP_DIR"
 
             echo "Deploying image tag: $IMAGE_TAG"
-            echo "TOKEN LEN=${#GHCR_TOKEN}"
-            echo "GHCR_TOKEN=${#GHCR_TOKEN}"
-            echo "$GHCR_TOKEN" | docker login ghcr.io -u yarc7 --password-stdin
+            echo "$GHCR_TOKEN" | docker login ghcr.io -u "$GHCR_USER" --password-stdin
 
-            sed -i "s|^APP_IMAGE=.*|APP_IMAGE=ghcr.io/yarc7/anochat:${IMAGE_TAG}|" .env
+            # Update images in .env (used by docker-compose.prod.yml)
+            sed -i "s|^APP_IMAGE_APP=.*|APP_IMAGE_APP=ghcr.io/${OWNER_LC}/anochat:${IMAGE_TAG}-app|" .env || true
+            sed -i "s|^APP_IMAGE_WS=.*|APP_IMAGE_WS=ghcr.io/${OWNER_LC}/anochat:${IMAGE_TAG}-ws|" .env || true
+            sed -i "s|^APP_IMAGE_MIGRATE=.*|APP_IMAGE_MIGRATE=ghcr.io/${OWNER_LC}/anochat:${IMAGE_TAG}-migrate|" .env || true
+
+            # If keys are missing, append them
+            grep -q '^APP_IMAGE_APP=' .env || echo "APP_IMAGE_APP=ghcr.io/${OWNER_LC}/anochat:${IMAGE_TAG}-app" >> .env
+            grep -q '^APP_IMAGE_WS=' .env || echo "APP_IMAGE_WS=ghcr.io/${OWNER_LC}/anochat:${IMAGE_TAG}-ws" >> .env
+            grep -q '^APP_IMAGE_MIGRATE=' .env || echo "APP_IMAGE_MIGRATE=ghcr.io/${OWNER_LC}/anochat:${IMAGE_TAG}-migrate" >> .env
 
             docker compose -f docker-compose.prod.yml pull
-            docker compose -f docker-compose.prod.yml up -d --remove-orphans
+
+            # Ensure DB/Redis are up before running migrations
+            docker compose -f docker-compose.prod.yml up -d db redis
+
+            # Run migrations once (idempotent)
+            docker compose -f docker-compose.prod.yml run --rm migrate
+
+            # Start/update app + ws
+            docker compose -f docker-compose.prod.yml up -d --remove-orphans app ws
 
             docker image prune -f

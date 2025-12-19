@@ -1,6 +1,17 @@
 services:
+  migrate:
+    image: ${APP_IMAGE_MIGRATE}
+    env_file: .env
+    environment:
+      - DATABASE_URL=postgresql://postgres:postgres@db:5432/playground
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: "no"
+    pull_policy: always
+
   app:
-    image: ${APP_IMAGE}
+    image: ${APP_IMAGE_APP}
     ports:
       - "3000:3000"
     env_file: .env
@@ -16,8 +27,7 @@ services:
     pull_policy: always
 
   ws:
-    image: ${APP_IMAGE}
-    entrypoint: ["npm", "run", "start:ws"]
+    image: ${APP_IMAGE_WS}
     env_file: .env
     environment:
       - REDIS_URL=redis://redis:6379

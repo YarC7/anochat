@@ -159,6 +159,53 @@ export function MatchingLobby({ userId }: { userId: string }) {
     return () => clearInterval(interval);
   }, [isSearching]);
 
+  // Fallback: poll match status while searching (covers missed WebSocket events in production)
+  useEffect(() => {
+    if (!isSearching) return;
+    if (matchFound) return;
+    if (sessionId && partnerId) return;
+
+    let cancelled = false;
+
+    const checkStatus = async () => {
+      try {
+        const res = await fetch(`/api/matching/status?userId=${userId}`, {
+          cache: "no-store",
+        });
+        if (!res.ok) return;
+
+        const data = await res.json();
+        if (cancelled) return;
+
+        if (data?.matched && data?.sessionId && data?.partnerId) {
+          setSessionId(data.sessionId);
+          setPartnerId(data.partnerId);
+          setMatchFound(true);
+          setIsSearching(false);
+
+          localStorage.setItem(
+            `activeSession_${userId}`,
+            JSON.stringify({
+              sessionId: data.sessionId,
+              partnerId: data.partnerId,
+            })
+          );
+        }
+      } catch {
+        // ignore transient errors
+      }
+    };
+
+    // check immediately, then poll
+    checkStatus();
+    const interval = setInterval(checkStatus, 1500);
+
+    return () => {
+      cancelled = true;
+      clearInterval(interval);
+    };
+  }, [isSearching, matchFound, sessionId, partnerId, userId]);
+
   const startMatching = async () => {
     setIsSearching(true);
 
