@@ -26,7 +26,7 @@ COPY --from=builder /app/drizzle.config.ts ./
 COPY --from=builder /app/package.json ./
 COPY --from=builder /app/scripts ./scripts
 
-RUN npm install drizzle-kit dotenv tsx
+RUN npm install dotenv tsx
 
 EXPOSE 3000 8080
 CMD ["node", "server.js"]
