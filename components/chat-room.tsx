@@ -673,12 +673,6 @@ export function ChatRoom({
 
         {/* Messages Container */}
         <div className="flex-1 overflow-y-auto px-3 md:px-6 py-3 md:py-4 space-y-3 md:space-y-4 my-scroll-container">
-          {/* System message */}
-          <div className="flex justify-center">
-            <div className="bg-white/5 text-gray-400 text-xs px-3 md:px-4 py-1.5 md:py-2 rounded-full">
-              {t("today")} 10:23 AM
-            </div>
-          </div>
           <div className="flex justify-center">
             <div className="bg-white/5 text-gray-400 text-xs px-3 md:px-4 py-1.5 md:py-2 rounded-full">
               {t("chatting_with_stranger")}
