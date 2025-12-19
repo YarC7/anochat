@@ -41,7 +41,8 @@
     "sonner": "^2.0.7",
     "stripe": "^20.0.0",
     "tailwind-merge": "^3.4.0",
-    "ws": "^8.18.3"
+    "ws": "^8.18.3",
+    "drizzle-kit": "^0.31.8"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
@@ -49,7 +50,6 @@
     "@types/pg": "^8.16.0",
     "@types/react": "^19",
     "@types/react-dom": "^19",
-    "drizzle-kit": "^0.31.8",
     "eslint": "^9",
     "eslint-config-next": "16.0.8",
     "png-to-ico": "^1.0.7",

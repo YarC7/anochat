@@ -1,9 +1,8 @@
 services:
   migrate:
-    image: ${APP_IMAGE_MIGRATE}
+    image: ${APP_IMAGE}
     env_file: .env
-    environment:
-      - DATABASE_URL=postgresql://postgres:postgres@db:5432/playground
+    command: npx drizzle-kit push
     depends_on:
       db:
         condition: service_healthy
@@ -11,7 +10,7 @@ services:
     pull_policy: always
 
   app:
-    image: ${APP_IMAGE_APP}
+    image: ${APP_IMAGE}
     ports:
       - "3000:3000"
     env_file: .env
@@ -27,7 +26,8 @@ services:
     pull_policy: always
 
   ws:
-    image: ${APP_IMAGE_WS}
+    image: ${APP_IMAGE}
+    command: node scripts/ws-server.js
     env_file: .env
     environment:
       - REDIS_URL=redis://redis:6379
